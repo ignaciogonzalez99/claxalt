@@ -31,29 +31,23 @@ const PHRASES: Record<string, string> = {
   fin:       '',
 }
 
-// ── Camila name — SVG clip-path reveal (GSAP stroke-write effect) ──
-function CamilaName() {
-  const wrapRef    = useRef<HTMLDivElement>(null)
-  const clipRef    = useRef<SVGRectElement>(null)
+// ── Camila name — SVG clip-path reveal (GSAP write effect) ────
+function CamilaName({ animate }: { animate: boolean }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const clipRef = useRef<SVGRectElement>(null)
 
   useEffect(() => {
-    if (!wrapRef.current || !clipRef.current) return
-
+    if (!animate || !wrapRef.current || !clipRef.current) return
     const ctx = gsap.context(() => {
-      // 1. Container slides up + fades in
       gsap.fromTo(wrapRef.current,
         { y: 16, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.65, ease: 'power2.out', delay: 0.2 }
-      )
-      // 2. Clip rect sweeps left → right — mimics ink drawing the name
+        { y: 0, opacity: 1, duration: 0.65, ease: 'power2.out' })
       gsap.fromTo(clipRef.current,
         { attr: { width: 0 } },
-        { attr: { width: 320 }, duration: 1.85, ease: 'power3.inOut', delay: 0.35 }
-      )
+        { attr: { width: 320 }, duration: 1.85, ease: 'power3.inOut', delay: 0.1 })
     }, wrapRef)
-
     return () => ctx.revert()
-  }, [])
+  }, [animate])
 
   return (
     <div ref={wrapRef} style={{ opacity: 0, lineHeight: 0, textAlign: 'center' }}>
@@ -65,38 +59,17 @@ function CamilaName() {
       >
         <defs>
           <clipPath id="camila-clip">
-            {/* starts at width=0; GSAP expands it to reveal the name */}
             <rect ref={clipRef} x="-12" y="-12" width="0" height="100" />
           </clipPath>
         </defs>
-
-        {/* Soft shadow / glow underneath for depth */}
-        <text
-          x="150" y="62"
-          textAnchor="middle"
-          clipPath="url(#camila-clip)"
-          style={{
-            fontFamily: 'var(--font-dancing)',
-            fontSize: '62px',
-            fill: '#F5C8D8',
-            filter: 'blur(6px)',
-            opacity: 0.5,
-          }}
-        >
+        {/* Glow layer */}
+        <text x="150" y="62" textAnchor="middle" clipPath="url(#camila-clip)"
+          style={{ fontFamily: 'var(--font-dancing)', fontSize: '62px', fill: '#F5C8D8', filter: 'blur(6px)', opacity: 0.5 }}>
           Camila
         </text>
-
         {/* Main text */}
-        <text
-          x="150" y="62"
-          textAnchor="middle"
-          clipPath="url(#camila-clip)"
-          style={{
-            fontFamily: 'var(--font-dancing)',
-            fontSize: '62px',
-            fill: '#E8899E',
-          }}
-        >
+        <text x="150" y="62" textAnchor="middle" clipPath="url(#camila-clip)"
+          style={{ fontFamily: 'var(--font-dancing)', fontSize: '62px', fill: '#E8899E' }}>
           Camila
         </text>
       </svg>
@@ -107,6 +80,8 @@ function CamilaName() {
 // ── Main page ──────────────────────────────────────────────────
 export default function Home() {
   const [photoIndex, setPhotoIndex] = useState(0)
+  const [loadPct,    setLoadPct]    = useState(0)   // 0–1
+  const [isLoaded,   setIsLoaded]   = useState(false)
 
   const cardRef     = useRef<HTMLDivElement>(null)
   const back1Ref    = useRef<HTMLDivElement>(null)
@@ -115,12 +90,86 @@ export default function Home() {
   const labelRef    = useRef<HTMLDivElement>(null)
   const page1Ref    = useRef<HTMLDivElement>(null)
   const page2Ref    = useRef<HTMLDivElement>(null)
+  const loaderRef   = useRef<HTMLDivElement>(null)
+  const barRef      = useRef<HTMLDivElement>(null)
+  const sparkRef    = useRef<HTMLSpanElement>(null)
   const isAnimating = useRef(false)
 
   const current   = PHOTOS[photoIndex]
   const isEndCard = current.country === 'fin'
 
-  // ── advance ──────────────────────────────────────────────────
+  // ── 1. Preload all photos ──────────────────────────────────────
+  useEffect(() => {
+    const srcs = PHOTOS.filter(p => p.src !== null).map(p => p.src as string)
+    const total = srcs.length
+    let done = 0
+    let cancelled = false
+    const startTime = Date.now()
+
+    const exitLoader = () => {
+      if (cancelled || !loaderRef.current) return
+      // Ensure loader is visible for at least 750 ms (feels intentional, not a flash)
+      const wait = Math.max(0, 750 - (Date.now() - startTime))
+      setTimeout(() => {
+        if (cancelled) return
+        gsap.to(loaderRef.current!, {
+          yPercent: -100,
+          duration: 0.68,
+          ease: 'power2.inOut',
+          onComplete: () => setIsLoaded(true),
+        })
+      }, wait)
+    }
+
+    srcs.forEach(src => {
+      const img = new window.Image()
+      img.onload = img.onerror = () => {
+        if (cancelled) return
+        done++
+        setLoadPct(done / total)
+        if (done === total) exitLoader()
+      }
+      img.src = src
+    })
+
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 2. Animate progress bar smoothly as loadPct changes ────────
+  useEffect(() => {
+    if (!barRef.current) return
+    gsap.to(barRef.current, { scaleX: loadPct, duration: 0.35, ease: 'power1.out' })
+  }, [loadPct])
+
+  // ── 3. Loader spark pulse (runs immediately, loader is visible) ─
+  useEffect(() => {
+    if (!sparkRef.current) return
+    gsap.to(sparkRef.current, {
+      scale: 1.35, opacity: 0.45,
+      duration: 0.85, ease: 'sine.inOut',
+      yoyo: true, repeat: -1,
+    })
+  }, [])
+
+  // ── 4. Main entrance — fires once after loader exits ───────────
+  useEffect(() => {
+    if (!isLoaded) return
+    gsap.set(page2Ref.current, { yPercent: 100 })
+    gsap.fromTo([back2Ref.current, back1Ref.current],
+      { y: 58, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.85, ease: 'power2.out', delay: 0.05, stagger: 0.07 })
+    gsap.fromTo(cardRef.current,
+      { y: 48, opacity: 0, scale: 0.93, rotation: -3 },
+      { y: 0, opacity: 1, scale: 1, rotation: 0, duration: 1.05, ease: 'back.out(1.3)', delay: 0.12 })
+    gsap.fromTo(labelRef.current,
+      { y: 12, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.6, ease: 'power2.out', delay: 0.65 })
+    gsap.fromTo(phraseRef.current,
+      { y: 10, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.6, ease: 'power2.out', delay: 0.8 })
+  }, [isLoaded])
+
+  // ── advance ────────────────────────────────────────────────────
   const advance = useCallback(() => {
     if (isAnimating.current || !cardRef.current || PHOTOS[photoIndex].country === 'fin') return
     isAnimating.current = true
@@ -131,26 +180,19 @@ export default function Home() {
 
     const tl = gsap.timeline({ onComplete: () => { isAnimating.current = false } })
 
-    // Back cards: brief shuffle
     tl.to([back1Ref.current, back2Ref.current], {
       rotation: '+=3', x: '+=4',
       duration: 0.2, ease: 'power1.inOut', yoyo: true, repeat: 1,
     }, 0)
-
-    // Card: lift → throw left
     tl.to(cardRef.current, { y: -12, duration: 0.1, ease: 'power1.out' }, 0)
     tl.to(cardRef.current, {
       x: -420, y: 30, rotation: -18, opacity: 0,
       duration: 0.33, ease: 'power3.in',
     }, 0.1)
-
-    // Country change: phrase + label exit leftward
     if (isCC) {
       tl.to(phraseRef.current, { x: -32, opacity: 0, duration: 0.22, ease: 'power2.in' }, 0.07)
       tl.to(labelRef.current,  { y: -8,  opacity: 0, duration: 0.18, ease: 'power2.in' }, 0.09)
     }
-
-    // While invisible: swap state + reposition for entry
     tl.call(() => {
       flushSync(() => setPhotoIndex(next))
       gsap.set(cardRef.current!,  { x: 420, y: 30, rotation: 18, opacity: 0 })
@@ -159,28 +201,24 @@ export default function Home() {
         gsap.set(labelRef.current!,  { y: 8,  opacity: 0 })
       }
     }, undefined, 0.44)
-
-    // Card enters from right — spring
     tl.to(cardRef.current, {
       x: 0, y: 0, rotation: 0, opacity: 1,
       duration: 0.6, ease: 'back.out(1.2)',
     }, 0.45)
-
-    // Phrase + label re-enter (skip if next is end card)
     if (isCC && !nextIsEnd) {
       tl.to(phraseRef.current, { x: 0, opacity: 1, duration: 0.38, ease: 'power2.out' }, 0.63)
       tl.to(labelRef.current,  { y: 0, opacity: 1, duration: 0.32, ease: 'power2.out' }, 0.61)
     }
   }, [photoIndex])
 
-  // ── auto-advance (stops at end card) ─────────────────────────
+  // ── auto-advance (only after load, stops at end card) ──────────
   useEffect(() => {
-    if (isEndCard) return
+    if (!isLoaded || isEndCard) return
     const id = setInterval(advance, 3200)
     return () => clearInterval(id)
-  }, [advance, isEndCard])
+  }, [advance, isLoaded, isEndCard])
 
-  // ── page 1 → 2 ────────────────────────────────────────────────
+  // ── page transitions ───────────────────────────────────────────
   const goToFinal = useCallback(() => {
     if (!page1Ref.current || !page2Ref.current) return
     gsap.set('.final-line', { opacity: 0, y: 24 })
@@ -192,7 +230,6 @@ export default function Home() {
     tl.to('.final-line', { y: 0, opacity: 1, stagger: 0.22, duration: 0.65, ease: 'power2.out' }, 0.48)
   }, [])
 
-  // ── page 2 → 1 ────────────────────────────────────────────────
   const goBack = useCallback(() => {
     if (!page1Ref.current || !page2Ref.current) return
     const tl = gsap.timeline()
@@ -200,15 +237,11 @@ export default function Home() {
     tl.to(page1Ref.current, { yPercent: 0,   duration: 0.65, ease: 'power2.inOut' }, 0)
   }, [])
 
-  // ── reset all — back to page 1, first photo ───────────────────
   const resetAll = useCallback(() => {
     if (!page1Ref.current || !page2Ref.current) return
-
     const tl = gsap.timeline()
     tl.to(page2Ref.current, { yPercent: 100, duration: 0.65, ease: 'power2.inOut' })
     tl.to(page1Ref.current, { yPercent: 0,   duration: 0.65, ease: 'power2.inOut' }, 0)
-
-    // After transition completes, restore page 1 to initial state
     tl.call(() => {
       flushSync(() => setPhotoIndex(0))
       gsap.set(cardRef.current!,   { x: 0, y: 0, rotation: 0, opacity: 1 })
@@ -217,32 +250,51 @@ export default function Home() {
     }, undefined, 0.68)
   }, [])
 
-  // ── mount ─────────────────────────────────────────────────────
-  useEffect(() => {
-    gsap.set(page2Ref.current, { yPercent: 100 })
-
-    const ctx = gsap.context(() => {
-      gsap.fromTo([back2Ref.current, back1Ref.current],
-        { y: 58, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.85, ease: 'power2.out', delay: 0.38, stagger: 0.07 })
-      gsap.fromTo(cardRef.current,
-        { y: 48, opacity: 0, scale: 0.93, rotation: -3 },
-        { y: 0, opacity: 1, scale: 1, rotation: 0, duration: 1.05, ease: 'back.out(1.3)', delay: 0.44 })
-      gsap.fromTo(labelRef.current,
-        { y: 12, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.6, ease: 'power2.out', delay: 1.0 })
-      gsap.fromTo(phraseRef.current,
-        { y: 10, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.6, ease: 'power2.out', delay: 1.14 })
-    })
-
-    return () => ctx.revert()
-  }, [])
-
   const continueColor = isEndCard ? '#6B6460' : '#B8B0A8'
 
   return (
     <div style={{ height: '100dvh', overflow: 'hidden', position: 'relative', background: '#FAF7F2' }}>
+
+      {/* ─── LOADER — sits on top, slides up when images are ready ─── */}
+      <div
+        ref={loaderRef}
+        style={{
+          position: 'absolute', inset: 0, zIndex: 20,
+          background: '#FAF7F2',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 32,
+          // stays on top until GSAP slides it up
+        }}
+      >
+        {/* Pulsing ✦ — same symbol used in the polaroids */}
+        <span
+          ref={sparkRef}
+          style={{ fontSize: 22, color: '#E8899E', lineHeight: 1, display: 'block' }}
+        >
+          ✦
+        </span>
+
+        {/* Progress bar track */}
+        <div style={{
+          width: 'min(140px, 40vw)',
+          height: 2,
+          background: '#F0D8E2',
+          borderRadius: 2,
+          overflow: 'hidden',
+        }}>
+          {/* Fill — GSAP animates scaleX from 0 to 1 */}
+          <div
+            ref={barRef}
+            style={{
+              width: '100%', height: '100%',
+              background: '#E8899E',
+              transformOrigin: 'left center',
+              transform: 'scaleX(0)',
+            }}
+          />
+        </div>
+      </div>
 
       {/* ─── PAGE 1: Gallery ─── */}
       <div
@@ -252,12 +304,12 @@ export default function Home() {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}
       >
-        {/* ── Camila name ── */}
+        {/* Camila name — animation triggered by isLoaded */}
         <div style={{ paddingTop: 'max(24px, 3dvh)', width: '100%', display: 'flex', justifyContent: 'center' }}>
-          <CamilaName />
+          <CamilaName animate={isLoaded} />
         </div>
 
-        {/* ── Country label ── */}
+        {/* Country label */}
         <div
           ref={labelRef}
           style={{
@@ -276,11 +328,10 @@ export default function Home() {
           <span style={{ display: 'block', width: 18, height: 1, background: '#C8C0B8' }} />
         </div>
 
-        {/* ── Card stack ── */}
+        {/* Card stack */}
         <div
           style={{
             position: 'relative', cursor: 'pointer',
-            // Slightly smaller card to fit the Camila name above
             width: 'clamp(196px, calc(100vw - 92px), 256px)',
             aspectRatio: '256 / 346',
           }}
@@ -288,7 +339,6 @@ export default function Home() {
           role="button"
           aria-label={isEndCard ? 'continuar' : 'siguiente foto'}
         >
-          {/* Decorative stack cards */}
           <div ref={back2Ref} style={{
             position: 'absolute', inset: 0, borderRadius: 14, background: '#fff',
             transform: 'rotate(7deg) translate(6px, 5px)',
@@ -299,8 +349,6 @@ export default function Home() {
             transform: 'rotate(3.5deg) translate(3px, 2px)',
             zIndex: 1, boxShadow: '0 2px 10px rgba(0,0,0,0.08)', opacity: 0.88,
           }} />
-
-          {/* Active polaroid card */}
           <div ref={cardRef} style={{
             position: 'absolute', inset: 0, borderRadius: 14, background: '#fff',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -320,7 +368,6 @@ export default function Home() {
                 />
               </div>
             ) : (
-              /* End card */
               <div style={{
                 flex: 1, display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
@@ -341,15 +388,13 @@ export default function Home() {
                 </svg>
               </div>
             )}
-
-            {/* Polaroid base */}
             <div style={{ height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ color: '#D4CEC8', fontSize: 9, letterSpacing: '0.35em', fontFamily: 'system-ui' }}>✦ ✦ ✦</span>
             </div>
           </div>
         </div>
 
-        {/* ── Phrase ── */}
+        {/* Phrase */}
         <p
           ref={phraseRef}
           style={{
@@ -362,7 +407,7 @@ export default function Home() {
           {PHRASES[current.country]}
         </p>
 
-        {/* ── Progress dots ── */}
+        {/* Progress dots */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 'max(10px, 1.2dvh)' }}>
           {PHOTOS.slice(0, -1).map((_, i) => (
             <div key={i} style={{
@@ -372,7 +417,6 @@ export default function Home() {
               transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)',
             }} />
           ))}
-          {/* End card dot — darker shade */}
           <div style={{
             height: 5, borderRadius: 9999,
             background: isEndCard ? '#3A3530' : '#EAE5DF',
@@ -383,7 +427,7 @@ export default function Home() {
 
         <div style={{ flex: 1 }} />
 
-        {/* ── Continue button ── */}
+        {/* Continue button */}
         <button
           onClick={goToFinal}
           style={{
@@ -414,7 +458,7 @@ export default function Home() {
           padding: '0 40px', background: '#FAF7F2',
         }}
       >
-        {/* Back button — top left */}
+        {/* Back button */}
         <button
           onClick={goBack}
           style={{
@@ -432,14 +476,13 @@ export default function Home() {
           volver
         </button>
 
-        {/* Reset button — bottom right, pastel pink circle */}
+        {/* Reset button */}
         <button
           onClick={resetAll}
           aria-label="reiniciar"
           style={{
             position: 'absolute',
-            bottom: 'max(28px, 3.5dvh)',
-            right: 24,
+            bottom: 'max(28px, 3.5dvh)', right: 24,
             width: 46, height: 46,
             borderRadius: '50%',
             background: '#FFF0F5',
@@ -451,18 +494,9 @@ export default function Home() {
             boxShadow: '0 3px 12px rgba(220,130,155,0.2)',
           }}
         >
-          {/* Refresh / restart icon */}
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M3 10a7 7 0 1 1 2.5 5.36"
-              stroke="currentColor" strokeWidth="1.7"
-              strokeLinecap="round" strokeLinejoin="round"
-            />
-            <path
-              d="M3 15.5V10.5H8"
-              stroke="currentColor" strokeWidth="1.7"
-              strokeLinecap="round" strokeLinejoin="round"
-            />
+            <path d="M3 10a7 7 0 1 1 2.5 5.36" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M3 15.5V10.5H8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
