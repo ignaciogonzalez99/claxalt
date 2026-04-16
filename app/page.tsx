@@ -467,26 +467,34 @@ export default function Home() {
         </button>
 
         {/* Final quote */}
-        <div style={{ maxWidth: 286, textAlign: 'center' }}>
-          <div className="final-line" style={{ width: 28, height: 1, background: '#D4CEC8', margin: '0 auto 32px', opacity: 0 }} />
+        <div style={{ maxWidth: 290, textAlign: 'center' }}>
+          <div className="final-line" style={{ width: 28, height: 1, background: '#D4CEC8', margin: '0 auto 30px', opacity: 0 }} />
 
           <p className="final-line" style={{
-            fontSize: 21, fontWeight: 400, color: '#3A3530',
-            fontFamily: 'var(--font-lora)', lineHeight: 1.72,
+            fontSize: 20, fontWeight: 400, color: '#3A3530',
+            fontFamily: 'var(--font-lora)', lineHeight: 1.7,
             fontStyle: 'italic', opacity: 0,
           }}>
-            Pero si vamos por un café, me encantaría que me cuentes cada sitio.
+            Si vamos por un café, me encantaría que me cuentes.
           </p>
 
           <p className="final-line" style={{
-            marginTop: 22, fontSize: 15, fontWeight: 400,
-            color: '#A09890', fontFamily: 'var(--font-lora)',
-            lineHeight: 1.6, fontStyle: 'italic', opacity: 0,
+            marginTop: 18, fontSize: 15, fontWeight: 400,
+            color: '#5C5854', fontFamily: 'var(--font-lora)',
+            lineHeight: 1.7, fontStyle: 'italic', opacity: 0,
           }}>
-            Seguro hay buenas historias.
+            De cada lugar — lo que más te gustó, lo que te sorprendió, las anécdotas que no caben en ninguna foto.
           </p>
 
-          <div className="final-line" style={{ width: 28, height: 1, background: '#D4CEC8', margin: '32px auto 0', opacity: 0 }} />
+          <p className="final-line" style={{
+            marginTop: 18, fontSize: 14, fontWeight: 400,
+            color: '#A09890', fontFamily: 'var(--font-lora)',
+            lineHeight: 1.65, fontStyle: 'italic', opacity: 0,
+          }}>
+            Creo que va a ser una charla muy entretenida. Tengo muchas ganas de escucharte.
+          </p>
+
+          <div className="final-line" style={{ width: 28, height: 1, background: '#D4CEC8', margin: '30px auto 0', opacity: 0 }} />
         </div>
       </div>
 
